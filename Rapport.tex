@@ -1,0 +1,819 @@
+%=======================================================================
+%  Rapport TP1 - Commande Avancee
+%  ESIX Normandie - 5A Systemes Embarques (MeSE) - 2026/2027
+%  Compilation : pdflatex rapport.tex (x2)
+%=======================================================================
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+%--- Mise en page ------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small TP1 -- Commande adaptative d'un pendule}
+\fancyhead[R]{\small ESIX 5A -- MeSE}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%--- Style des listings Matlab ----------------------------------------
+\definecolor{codegray}{gray}{0.95}
+\definecolor{codegreen}{rgb}{0,0.5,0}
+\definecolor{codeblue}{rgb}{0,0,0.6}
+\lstset{
+  language=Matlab,
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codegray},
+  commentstyle=\color{codegreen},
+  keywordstyle=\color{codeblue},
+  numbers=left, numberstyle=\tiny, numbersep=6pt,
+  breaklines=true, frame=single, captionpos=b,
+  literate={é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1 {ù}{{\`u}}1 {ô}{{\^o}}1 {î}{{\^i}}1 {ç}{{\c c}}1
+}
+
+%--- Macro figure : affiche l'image si elle existe, sinon un cadre -----
+\newcommand{\figtp}[4][0.78]{%
+  \begin{figure}[htbp]
+    \centering
+    \IfFileExists{#2}{\includegraphics[width=#1\textwidth]{#2}}%
+      {\fbox{\parbox[c][5cm][c]{#1\textwidth}{\centering\itshape\small
+        Figure a inserer : \texttt{\detokenize{#2}}}}}
+    \caption{#3}
+    \label{#4}
+  \end{figure}}
+
+\begin{document}
+
+%=======================================================================
+%  PAGE DE GARDE
+%=======================================================================
+\begin{titlepage}
+\centering
+{\large Université de Caen Normandie\par}
+{\large École d'ingénieurs ESIX Normandie\par}
+\vspace{0.3cm}
+{\large Filière Mécatronique et Systèmes Embarqués (MeSE) -- 5\textsuperscript{e} année\par}
+\vspace{2.2cm}
+
+\rule{\textwidth}{1pt}\\[0.6cm]
+{\Huge\bfseries Commande Avancée\par}
+\vspace{0.5cm}
+{\LARGE TP n\textsuperscript{o}1 : Commande adaptative\\[0.2cm] à modèle de référence d'un pendule\par}
+\vspace{0.6cm}
+\rule{\textwidth}{1pt}\\[2.5cm]
+
+\begin{minipage}{0.45\textwidth}
+\begin{flushleft}
+\textbf{Rédigé par :}\\[0.2cm]
+Abdelmoutalib \textsc{Douadi}
+\end{flushleft}
+\end{minipage}
+\hfill
+\begin{minipage}{0.45\textwidth}
+\begin{flushright}
+\textbf{Encadrant :}\\[0.2cm]
+Pr. Fouad \textsc{Giri}
+\end{flushright}
+\end{minipage}
+
+\vfill
+{\large Année universitaire 2026 -- 2027\par}
+\end{titlepage}
+
+%=======================================================================
+\tableofcontents
+\clearpage
+
+%=======================================================================
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction}
+
+Ce travail pratique porte sur la commande d'un pendule simple actionné par un couple moteur.
+L'objectif pédagogique est de comparer, sur un même procédé non linéaire et sur les mêmes
+scénarios d'essai, trois stratégies de commande de complexité croissante :
+
+\begin{itemize}
+  \item un régulateur \textbf{PID} à paramètres fixes, synthétisé par placement de pôles sur le
+        modèle linéarisé autour de la position d'équilibre basse ;
+  \item un régulateur \textbf{linéaire à modèle de référence} (MR), synthétisé sur le modèle
+        discret ARMA du procédé, dont les paramètres sont supposés connus ;
+  \item un régulateur \textbf{adaptatif à modèle de référence} (CAMR), qui estime en ligne les
+        paramètres du régulateur par moindres carrés récursifs et n'exige donc aucune
+        connaissance préalable du procédé.
+\end{itemize}
+
+Les trois régulateurs sont soumis aux mêmes perturbations : un changement d'amplitude de
+consigne, qui éprouve la validité de l'hypothèse de linéarité, et un changement de la masse du
+pendule, qui éprouve la robustesse vis-à-vis d'une variation paramétrique. Le rapport suit
+l'ordre des tâches de l'énoncé et donne, pour chacune, le code produit, les résultats de
+simulation et leur interprétation à la lumière du cours.
+
+%=======================================================================
+\chapter{Modélisation et simulation du procédé}
+
+\section{Modèle de connaissance}
+
+Le pendule est décrit par l'équation du mouvement
+\begin{equation}
+  J\,\ddot{\theta}(t) = C(t) - K\,\dot{\theta}(t) - m_0\,g\,r\,\sin\big(\theta(t)\big),
+  \qquad J = m_0 r^2,
+  \label{eq:pendule}
+\end{equation}
+où $\theta$ est l'angle par rapport à la verticale descendante, $C$ le couple de commande
+(noté $u$ par la suite), $K$ le coefficient de frottement visqueux et $J$ le moment d'inertie.
+Les valeurs numériques retenues sont rassemblées dans le tableau~\ref{tab:param}.
+
+\begin{table}[htbp]
+\centering
+\caption{Paramètres du procédé et de la simulation}
+\label{tab:param}
+\begin{tabular}{llr}
+\toprule
+Grandeur & Symbole & Valeur \\
+\midrule
+Masse                       & $m_0$ & $0{,}25$ kg \\
+Longueur du bras            & $r$   & $1$ m \\
+Frottement visqueux         & $K$   & $0{,}1$ \\
+Accélération de la pesanteur& $g$   & $10$ m/s$^2$ \\
+Période d'échantillonnage   & $T_e$ & $0{,}05$ s \\
+Pas de calcul (Runge--Kutta)& $T_c$ & $0{,}005$ -- $0{,}01$ s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+En posant le vecteur d'état $x = [\theta\;\; \dot{\theta}]^{T}$, l'équation~\eqref{eq:pendule}
+s'écrit sous la forme d'état
+\begin{equation}
+  \dot{x} = f(x,u) =
+  \begin{bmatrix} x_2 \\[2pt] \dfrac{u - K x_2 - m_0 g r \sin(x_1)}{m_0 r^2}\end{bmatrix}.
+\end{equation}
+
+\section{Simulation numérique : rôle de la méthode de Runge--Kutta}
+
+Aucun banc réel n'étant disponible, le procédé est simulé numériquement. En raison du terme
+$\sin(\theta)$, l'équation~\eqref{eq:pendule} n'admet pas de solution analytique : on l'intègre
+donc pas à pas par la méthode de Runge--Kutta d'ordre 2 (méthode de Heun), qui prédit l'état
+suivant par un pas d'Euler puis le corrige par la moyenne des deux pentes :
+\begin{equation}
+  x_1 = x(t) + T_c f\big(x(t),u\big), \qquad
+  x(t+T_c) = x(t) + \frac{T_c}{2}\Big[f\big(x(t),u\big) + f\big(x_1,u\big)\Big].
+\end{equation}
+
+La structure à deux boucles imbriquées du script reproduit fidèlement une commande numérique :
+la boucle interne effectue $m = T_e/T_c$ pas d'intégration et représente l'évolution
+\emph{continue} du procédé ; la boucle externe, cadencée à $T_e$, représente le calculateur, qui
+ne lit le capteur et ne recalcule la commande qu'une fois par période. Entre deux calculs, $u$
+reste constante : c'est le \textbf{bloqueur d'ordre zéro}, dont on retrouvera l'effet lors de
+l'échantillonnage de la fonction de transfert.
+
+\section{Tâche 0 : comportement en boucle ouverte}
+
+Le pendule est soumis à des échelons de couple d'amplitudes $0{,}1$, $0{,}5$, $1$ et
+$1{,}5$~N$\cdot$m, sans aucune régulation.
+
+\figtp{figures/BO_tache0_fig1.png}{Réponses en boucle ouverte à des échelons de couple}{fig:bo}
+
+\paragraph{Résultats.} Les valeurs finales obtenues sont rassemblées dans le
+tableau~\ref{tab:bo}, où elles sont comparées à la prédiction du modèle linéarisé
+$\theta_\infty = u/(m_0 g r)$.
+
+\begin{table}[htbp]
+\centering
+\caption{Position d'équilibre en boucle ouverte : procédé réel et modèle linéarisé}
+\label{tab:bo}
+\begin{tabular}{cccc}
+\toprule
+Échelon (N$\cdot$m) & $\theta_\infty$ réel (rad) & $\theta_\infty$ linéarisé (rad) & Écart relatif \\
+\midrule
+0,1 & 0,040 & 0,040 & $<1\%$ \\
+0,5 & 0,201 & 0,200 & $0{,}5\%$ \\
+1,0 & 0,412 & 0,400 & $3\%$ \\
+1,5 & 0,644 & 0,600 & $7\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Interprétation.} Trois observations structurent la suite du travail.
+
+\textbf{(i) Le procédé est très peu amorti.} Le modèle linéarisé donne un facteur
+d'amortissement $\xi = a_1/(2\sqrt{a_0}) = 0{,}4/(2\sqrt{10}) \approx 0{,}063$ et une pulsation
+propre $\omega_n = \sqrt{10} \approx 3{,}16$~rad/s. Les réponses présentent donc des
+oscillations de période voisine de $2$~s, qui ne s'éteignent qu'au bout d'une vingtaine de
+secondes ($\tau = 1/0{,}2 = 5$~s). Une régulation est indispensable pour amortir ce
+comportement.
+
+\textbf{(ii) La non-linéarité se manifeste dès les amplitudes moyennes.} L'équilibre réel vérifie
+$m_0 g r \sin\theta_\infty = u$, alors que le modèle linéarisé suppose
+$m_0 g r\,\theta_\infty = u$. Comme $\sin\theta < \theta$, le pendule réel doit monter
+\emph{plus haut} que ne le prédit le modèle pour équilibrer le même couple, d'où un écart
+croissant, qui atteint $7\%$ à $1{,}5$~N$\cdot$m. La période des oscillations s'allonge également
+avec l'amplitude, phénomène qu'aucun modèle linéaire ne peut reproduire.
+
+\textbf{(iii) Le procédé admet une limite physique.} Pour $u > m_0 g r = 2{,}5$~N$\cdot$m,
+l'équation $\sin\theta_\infty = u/(m_0 g r)$ n'a plus de solution : il n'existe plus de position
+d'équilibre et le pendule effectue des tours complets.
+
+%=======================================================================
+\chapter{Commande par régulateur PID}
+
+\section{Synthèse par placement de pôles}
+
+Autour de la position d'équilibre $\theta = 0$, l'approximation $\sin\theta \simeq \theta$
+conduit à la fonction de transfert
+\begin{equation}
+  G(p) = \frac{\Theta(p)}{U(p)} = \frac{b}{p^2 + a_1 p + a_0},
+  \qquad
+  b = \frac{1}{m_0 r^2} = 4,\quad a_1 = \frac{K}{m_0 r^2} = 0{,}4,\quad a_0 = \frac{g}{r} = 10 .
+  \label{eq:G}
+\end{equation}
+
+Le régulateur PID
+$u = K_p\big[e + \frac{1}{T_i}\int e\,\mathrm{d}t + T_d\,\dot{e}\big]$, avec $e = y^{\mathrm{ref}} - y$,
+place les trois pôles de la boucle fermée en $-\alpha$. L'identification du polynôme
+caractéristique avec $(p+\alpha)^3$ fournit les relations du cours :
+\begin{equation}
+  K_p = \frac{3\alpha^2 - a_0}{b}, \qquad
+  T_i = \frac{b K_p}{\alpha^3}, \qquad
+  T_d = \frac{3\alpha - a_1}{b K_p}.
+  \label{eq:pid}
+\end{equation}
+
+\paragraph{Tâche 1a.} Pour $\alpha = 2$, l'application numérique donne
+\begin{equation}
+  \boxed{K_p = 0{,}5}\qquad \boxed{T_i = 0{,}25~\mathrm{s}}\qquad \boxed{T_d = 2{,}8~\mathrm{s}}
+\end{equation}
+
+\begin{lstlisting}[caption={Tâche 1a : calcul des paramètres du PID}]
+alpha=2;
+Kp=(3*alpha^2 - a0)/b;      % gain proportionnel
+Ti=b*Kp/alpha^3;            % constante de temps integrale
+Td=(3*alpha - a1)/(b*Kp);   % constante de temps derivee
+\end{lstlisting}
+
+\section{Discrétisation de la loi de commande}
+
+Le calculateur ne dispose de la mesure qu'aux instants $kT_e$. Chaque terme est donc
+approché :
+\begin{equation}
+  \int_0^{t} e\,\mathrm{d}\tau \;\simeq\; I(k) = I(k-1) + T_e\,e(k)
+  \qquad\text{(méthode des rectangles)},
+\end{equation}
+\begin{equation}
+  \frac{\mathrm{d}e}{\mathrm{d}t} \;\simeq\; \frac{e(k)-e(k-1)}{T_e}
+  \qquad\text{(différence arrière)} .
+\end{equation}
+L'intégrale est ainsi accumulée récursivement : à chaque période, on ajoute l'aire d'un
+rectangle de largeur $T_e$ et de hauteur $e(k)$. Cette mémorisation est précisément ce qui
+annule l'erreur statique : lorsque $e = 0$, $I$ cesse d'évoluer mais conserve la valeur qui
+fournit le couple de maintien $m_0 g r\sin\theta$.
+
+\begin{lstlisting}[caption={Tâche 1b : loi de commande PID discrétisée}]
+e  = yref - y;                            % erreur de poursuite
+I  = I + Te*e;                            % integrale de (yref-y)
+u  = Kp*( e + (1/Ti)*I + Td*(e-e1)/Te );  % loi de commande PID
+e1 = e;                                   % memorisation pour le terme derive
+\end{lstlisting}
+
+\section{Tâche 1 : consigne d'amplitude 0,1 puis 5}
+
+Le signal de consigne est un carré de période $30$~s, d'amplitude $0{,}1$ sur $[0,75]$~s puis
+$5$ sur $[75,150]$~s.
+
+\figtp{figures/PID_tache1_fig1.png}{Tâche 1 : consigne et sortie du système}{fig:pid1a}
+\figtp{figures/PID_tache1_fig2.png}{Tâche 1 : signal de commande}{fig:pid1b}
+
+\paragraph{Première moitié ($A = 0{,}1$).} La sortie rejoint la consigne en environ $4$~s,
+\emph{sans erreur statique}, conformément au rôle de l'action intégrale. La réponse présente
+toutefois une forme caractéristique : un bond initial, un léger creux, puis la montée finale.
+Ce comportement est dû au terme dérivé : au front de consigne, $e$ subit un saut et le terme
+$K_p T_d (e-e_1)/T_e$ atteint $28 \times 0{,}1 \approx 2{,}8$~N$\cdot$m pendant une seule
+période. Ce phénomène, connu sous le nom de \emph{derivative kick}, est visible sous forme de
+pics sur la figure~\ref{fig:pid1b}. En pratique, on l'évite en dérivant la mesure plutôt que
+l'erreur.
+
+\paragraph{Seconde moitié ($A = 5$).} Le premier créneau d'amplitude $5$ n'apparaît qu'à
+$t = 90$~s, car à $t = 75$~s le carré est dans sa phase basse. La boucle reste stable, mais les
+performances se dégradent nettement : dépassement jusqu'à $\theta \approx 6{,}3$~rad
+(soit $26\%$, le pendule effectuant presque un tour complet), excursion jusqu'à $-1{,}3$~rad au
+retour à zéro et commande atteignant $140$~N$\cdot$m, valeur irréaliste pour un actionneur.
+
+\paragraph{Interprétation.} Le réglage~\eqref{eq:pid} repose sur la linéarisation autour de
+$\theta = 0$. Autour d'un point de fonctionnement $\bar\theta$ quelconque, le terme de raideur
+devient $g\cos(\bar\theta)/r$. Pour $\bar\theta = 5$~rad, on a $g\cos(5)/r \approx 2{,}84$ au
+lieu de $10$ : les pôles de la boucle fermée quittent le triple pôle en $-2$ et se placent en
+$-5{,}38$ et $-0{,}31 \pm 1{,}18\,\mathrm{j}$. Cette paire complexe faiblement amortie explique
+le dépassement observé.
+
+\section{Tâche 2 : consigne d'amplitude 0,1 puis 2,0}
+
+\figtp{figures/PID_tache2_fig1.png}{Tâche 2 : consigne et sortie pour une amplitude finale de 2,0}{fig:pid2a}
+\figtp{figures/PID_tache2_fig2.png}{Tâche 2 : signal de commande}{fig:pid2b}
+
+\paragraph{Résultats.} Le comportement est, de façon contre-intuitive, \emph{plus dégradé}
+qu'à l'amplitude $5$ : la sortie part vers $5$~rad, revient à $-1$~rad et ne se stabilise sur la
+consigne qu'au bout d'une quinzaine de secondes. La commande culmine à $57$~N$\cdot$m.
+
+\paragraph{Interprétation.} Autour de $\bar\theta = 2$~rad (environ $115^\circ$, donc au-dessus
+de l'horizontale), la raideur locale vaut $g\cos(2)/r \approx -4{,}16$ : elle est
+\emph{négative}, la gravité éloignant le pendule de ce point au lieu de l'y ramener. Le
+polynôme caractéristique de la boucle fermée devient
+\begin{equation}
+  p^3 + \big(a_1 + b K_p T_d\big)p^2 + \big(g\cos\bar\theta/r + bK_p\big)p + \frac{bK_p}{T_i}
+  = p^3 + 6p^2 - 2{,}16\,p + 8 ,
+\end{equation}
+dont un coefficient est négatif : la condition nécessaire de stabilité de Routh n'est pas
+satisfaite. Les pôles valent $-6{,}52$ et $+0{,}26 \pm 1{,}08\,\mathrm{j}$ : la boucle est
+\textbf{localement instable}, et le pendule ne se stabilise qu'après avoir quitté cette zone.
+À l'amplitude $5$, au contraire, $\cos(5) > 0$, ce qui explique le résultat meilleur de la
+tâche~1.
+
+\section{Tâche 3 : variation de la masse}
+
+La masse passe de $0{,}25$ à $0{,}5$~kg à $t = 150$~s, le régulateur restant inchangé.
+
+\figtp{figures/PID_tache3_fig1.png}{Tâche 3 : effet d'un doublement de la masse}{fig:pid3a}
+\figtp{figures/PID_tache3_fig2.png}{Tâche 3 : signal de commande}{fig:pid3b}
+
+\paragraph{Résultats et interprétation.} La boucle reste stable et sans erreur statique, mais la
+réponse devient environ deux fois plus lente : le temps de réponse passe d'environ $3{,}75$~s à
+$7{,}7$~s. Doubler $m_0$ divise $b$ et $a_1$ par deux ($b = 2$, $a_1 = 0{,}2$) ; le polynôme
+caractéristique devient $p^3 + 3p^2 + 11p + 4$, dont les racines sont $-0{,}40$ et
+$-1{,}30 \pm 2{,}88\,\mathrm{j}$. Le pôle réel lent en $-0{,}40$ impose une constante de temps
+de $2{,}5$~s et domine désormais la dynamique.
+
+\paragraph{Conclusion partielle.} Un régulateur à paramètres fixes ne garantit ses performances
+qu'au voisinage du point de fonctionnement et du jeu de paramètres ayant servi à sa synthèse.
+Les deux faiblesses mises en évidence --- sensibilité à l'amplitude et sensibilité aux
+variations paramétriques --- motivent respectivement le passage à une commande à modèle de
+référence, puis à sa version adaptative.
+
+%=======================================================================
+\chapter{Modèle discret ARMA du pendule}
+
+\section{Tâche 4 : fonction de transfert continue}
+
+L'application numérique de~\eqref{eq:G} donne
+\begin{equation}
+  G(p) = \frac{4}{p^2 + 0{,}4\,p + 10}.
+\end{equation}
+
+\section{Tâche 5 : échantillonnage, pôles et zéros}
+
+L'échantillonnage avec bloqueur d'ordre zéro à $T_e = 0{,}05$~s conduit à
+\begin{equation}
+  G_e(z) = \frac{0{,}004957\,z + 0{,}004924}{z^2 - 1{,}95550\,z + 0{,}98020}.
+\end{equation}
+
+\begin{table}[htbp]
+\centering
+\caption{Pôles et zéros des modèles continu et échantillonné}
+\label{tab:pz}
+\begin{tabular}{lcc}
+\toprule
+ & $G(p)$ & $G_e(z)$ \\
+\midrule
+Pôles & $-0{,}2 \pm 3{,}156\,\mathrm{j}$ & $0{,}9777 \pm 0{,}1556\,\mathrm{j}$ \\
+Module / partie réelle & partie réelle $<0$ & $|z| = 0{,}990 < 1$ \\
+Zéros & aucun & $-0{,}9934$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Interprétation.} On vérifie numériquement que
+$\exp(T_e \times \text{pôles de } G) = \text{pôles de } G_e$, ce qui confirme la relation
+$z = e^{pT_e}$ : le demi-plan gauche du plan $p$ est transformé en l'intérieur du cercle unité
+du plan $z$, et les deux modèles sont stables.
+
+Le point remarquable est l'apparition d'un \textbf{zéro d'échantillonnage} en $z = -0{,}9934$,
+alors que $G(p)$ n'en possède aucun. Ce zéro est introduit par le bloqueur d'ordre zéro
+appliqué à un système de degré relatif $2$. Il est situé à l'intérieur du cercle unité, donc le
+modèle discret est à minimum de phase, ce qui autorise la synthèse d'un régulateur à modèle de
+référence. Mais sa proximité avec $-1$ aura des conséquences très concrètes sur le signal de
+commande (section~\ref{sec:t13}).
+
+\section{Tâches 6 et 7 : réponses indicielles comparées}
+
+\figtp{figures/MR_tache6_fig11.png}{Réponse à un échelon de 0,1 N$\cdot$m : procédé réel, $G(p)$ et $G_e(z)$}{fig:t6a}
+\figtp{figures/MR_tache6_fig14.png}{Réponse à un échelon de 1,5 N$\cdot$m : l'écart au modèle linéaire devient visible}{fig:t6b}
+
+\paragraph{Interprétation.} Deux conclusions distinctes se dégagent.
+
+D'une part, $G(p)$ et $G_e(z)$ coïncident \emph{exactement} aux instants d'échantillonnage,
+quelle que soit l'amplitude : c'est la propriété fondamentale de l'échantillonnage avec
+bloqueur d'ordre zéro, exact pour une entrée en escalier. La discrétisation n'introduit donc
+aucune erreur de modélisation pour ce type d'entrée.
+
+D'autre part, le procédé réel s'écarte progressivement des deux modèles linéaires lorsque
+l'amplitude croît, conformément au tableau~\ref{tab:bo}. L'erreur de modélisation ne provient
+pas de l'échantillonnage, mais bien de la \textbf{linéarisation}.
+
+\section{Tâche 8 : mise sous forme ARMA}
+
+Matlab fournit $G_e$ sous forme d'un quotient de polynômes en $z$. En divisant numérateur et
+dénominateur par $z^2$ :
+\begin{equation}
+  G_e(z) = \frac{b_0 z^{-1} + b_1 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}}
+         = z^{-1}\,\frac{B(z^{-1})}{A(z^{-1})},
+\end{equation}
+d'où, en revenant au domaine temporel, la forme ARMA demandée :
+\begin{equation}
+  A(q^{-1})\,y(t) = q^{-d} B(q^{-1})\,u(t), \qquad d = 1,
+  \label{eq:arma}
+\end{equation}
+avec
+\begin{equation}
+  A(q^{-1}) = 1 - 1{,}95550\,q^{-1} + 0{,}98020\,q^{-2},
+  \qquad
+  B(q^{-1}) = 0{,}004957 + 0{,}004924\,q^{-1}.
+\end{equation}
+Le retard $d = 1$ traduit la causalité du calculateur : la commande calculée à l'instant $t$ ne
+peut agir sur la sortie qu'à partir de l'instant $t+1$.
+
+%=======================================================================
+\chapter{Spécification des performances}
+
+\section{Tâche 9 : choix et interprétation du modèle de référence}
+
+Le modèle de référence
+\begin{equation}
+  G_M(p) = \frac{1}{\dfrac{p^2}{\omega_0^2} + \dfrac{2\xi}{\omega_0}p + 1},
+  \qquad \xi = 1,\quad \omega_0 = 1~\mathrm{rad/s},
+\end{equation}
+ne décrit pas le procédé : il décrit le \emph{comportement souhaité} de la boucle fermée. La
+consigne traverse $G_M$ pour produire la trajectoire de référence $y^*(t)$ que la sortie devra
+suivre. Les valeurs choisies se justifient ainsi.
+
+\begin{itemize}
+  \item \textbf{Gain statique unitaire} : $G_M(0) = 1$, donc la sortie tend vers la consigne en
+        régime permanent, sans erreur statique.
+  \item \textbf{$\xi = 1$ (amortissement critique)} : les deux pôles sont confondus en
+        $p = -\omega_0$, la réponse indicielle est donc apériodique, sans dépassement. Ce choix
+        est pertinent face à un procédé dont l'amortissement naturel n'est que de $0{,}063$.
+  \item \textbf{$\omega_0 = 1$~rad/s} : le temps de réponse à $5\%$ vaut $\approx 4{,}75/\omega_0
+        \approx 4{,}75$~s. La boucle fermée est donc volontairement \emph{plus lente} que la
+        dynamique propre du pendule ($\omega_n \approx 3{,}16$~rad/s), ce qui limite l'amplitude
+        de la commande : un modèle de référence trop rapide exigerait des couples irréalistes et
+        saturerait l'actionneur.
+  \item \textbf{Réalisabilité} : le degré relatif de $G_M$ (égal à $2$) est supérieur ou égal au
+        retard $d = 1$ du procédé, condition nécessaire pour que la poursuite soit réalisable.
+\end{itemize}
+
+\section{Tâche 10 : modèle de référence discret}
+
+\begin{equation}
+  G_M(p) = \frac{1}{p^2 + 2p + 1}
+  \qquad\Longrightarrow\qquad
+  G_{Me}(z) = \frac{0{,}001209\,z + 0{,}001169}{z^2 - 1{,}90246\,z + 0{,}90484}.
+\end{equation}
+Les pôles de $G_{Me}$ sont doubles en $z = 0{,}95123 = e^{-1\times 0{,}05}$, ce qui confirme de
+nouveau la relation $z = e^{pT_e}$.
+
+\figtp[0.7]{figures/MR_tache10_fig10.png}{Réponse indicielle du modèle de référence, continu et échantillonné}{fig:gm}
+
+\section{Tâche 11 : polynôme de régulation $C(q^{-1})$}
+
+Le polynôme $C(q^{-1}) = 1 + c\,q^{-1}$ fixe la dynamique de l'erreur de régulation. Sa racine
+est $z = -c$ ; la condition $|c| < 1$ garantit qu'elle est à l'intérieur du cercle unité, donc
+que cette dynamique est stable. Deux valeurs sont étudiées :
+\begin{itemize}
+  \item $c = 0$ : $C = 1$, l'erreur est annulée en temps minimal (réponse \emph{dead-beat}) ;
+  \item $c = -0{,}5$ : un pôle en $0{,}5$ ralentit volontairement la correction, ce qui adoucit
+        le signal de commande.
+\end{itemize}
+
+%=======================================================================
+\chapter{Régulateur linéaire à modèle de référence}
+
+\section{Synthèse : équation de Bezout}
+
+La loi de commande à modèle de référence s'écrit
+\begin{equation}
+  R(q^{-1})B(q^{-1})\,u(t) + S(q^{-1})\,y(t) = C(q^{-1})\,y^*(t+d),
+  \label{eq:loiMR}
+\end{equation}
+où $R$ et $S$ sont solutions de l'équation de Bezout
+\begin{equation}
+  A(q^{-1})R(q^{-1}) + q^{-d} S(q^{-1}) = C(q^{-1}).
+  \label{eq:bezout}
+\end{equation}
+
+\paragraph{Degrés des polynômes.} Le cours donne $\deg R = d - 1$ et
+$\deg S = \max(n_A - 1,\, n_C - d)$. Ici $d = 1$, $n_A = 2$ et $n_C = 1$, d'où
+$\deg R = 0$ et $\deg S = 1$, soit $S(q^{-1}) = s_0 + s_1 q^{-1}$.
+
+\paragraph{Justification de $R = 1$.} En évaluant~\eqref{eq:bezout} en $q^{-1} = 0$, le terme
+$q^{-1}S$ s'annule et il reste $A(0)\,R = C(0)$. Comme $A(0) = C(0) = 1$, on obtient $R = 1$ :
+le polynôme $R$ est unitaire, ce qui correspond à la condition de causalité du régulateur.
+
+\paragraph{Détermination de $s_0$ et $s_1$.} En reportant $R = 1$ dans~\eqref{eq:bezout} :
+\begin{equation}
+  \big(1 + a_1 q^{-1} + a_2 q^{-2}\big) + q^{-1}\big(s_0 + s_1 q^{-1}\big) = 1 + c\,q^{-1},
+\end{equation}
+soit, après regroupement,
+\begin{equation}
+  1 + (a_1 + s_0)q^{-1} + (a_2 + s_1)q^{-2} = 1 + c\,q^{-1}.
+\end{equation}
+L'identification terme à terme fournit
+\begin{equation}
+  \boxed{s_0 = c - a_1} \qquad\text{et}\qquad \boxed{s_1 = -a_2}.
+\end{equation}
+
+\section{Tâche 12 : implantation de la loi de commande}
+
+Avec $R = 1$ et $d = 1$, la relation~\eqref{eq:loiMR} s'écrit explicitement
+\begin{equation}
+  b_0 u(t) + b_1 u(t-1) + s_0 y(t) + s_1 y(t-1) = y^*(t+1) + c\,y^*(t),
+\end{equation}
+d'où la forme programmée :
+\begin{equation}
+  u(t) = \frac{1}{b_0}\Big[-b_1 u(t-1) - s_0 y(t) - s_1 y(t-1) + y^*(t+1) + c\,y^*(t)\Big].
+\end{equation}
+
+\begin{lstlisting}[caption={Tâche 12 : loi de commande à modèle de référence}]
+R=1;
+s0=c-a1;  s1=-a2;
+u = ( -b1*u1 - s0*y - s1*y1 + Yref(k+1) + c*Yref(k) )/b0;
+\end{lstlisting}
+
+\section{Tâche 13 : consigne d'amplitude 0,1 puis 5}
+\label{sec:t13}
+
+\figtp{figures/MR_tache13_c0_fig1.png}{Tâche 13 : consigne et signal de référence}{fig:t13a}
+\figtp{figures/MR_tache13_c0_fig2.png}{Tâche 13 : sortie, référence et consigne}{fig:t13b}
+\figtp{figures/MR_tache13_c0_fig3.png}{Tâche 13 : signal de commande ($c = 0$)}{fig:t13c}
+
+\paragraph{Qualité de poursuite.} Elle est excellente : l'erreur $|y - y^*|$ reste inférieure à
+$10^{-3}$~rad sur la première moitié, alors même que le pendule part de $\theta_0 = 1$~rad avec
+une vitesse initiale non nulle. Avec $c = 0$, la sortie rejoint la trajectoire de référence en
+une seule période d'échantillonnage, ce qui correspond bien à la dynamique d'erreur en temps
+minimal imposée par $C = 1$. Sur la seconde moitié, à l'amplitude $5$, l'erreur ne dépasse pas
+$0{,}15$~rad et la commande reste inférieure à $5$~N$\cdot$m, ce qui constitue déjà une
+amélioration spectaculaire par rapport au PID de la tâche~1 ($6{,}3$~rad de dépassement et
+$140$~N$\cdot$m).
+
+\paragraph{Le prix caché : l'oscillation du signal de commande.} La figure~\ref{fig:t13c}
+révèle un phénomène absent de la sortie : la commande change de signe à chaque période, avec un
+pic initial d'environ $350$~N$\cdot$m, et met près de $60$~s à s'éteindre.
+
+L'explication tient au zéro identifié à la tâche~5. La loi~\eqref{eq:loiMR} fait intervenir
+$B(q^{-1})u(t)$ : le régulateur \emph{simplifie} le polynôme $B$, dont le zéro
+$z = -b_1/b_0 = -0{,}9934$ devient un \textbf{pôle de la dynamique de la commande} :
+\begin{equation}
+  u(t) \simeq -\frac{b_1}{b_0}\,u(t-1) = (-0{,}9934)\,u(t-1).
+\end{equation}
+La commande oscille donc à la fréquence de Nyquist et décroît avec une constante de temps
+$T_e/\ln(1/0{,}9934) \approx 7{,}5$~s. Ce mode n'apparaît pas sur $y$ puisque le zéro qui l'a
+engendré le compense exactement en sortie : il s'agit d'une \emph{oscillation cachée}, qui
+n'en solliciterait pas moins l'actionneur réel. C'est la limite pratique de l'hypothèse de
+minimum de phase lorsqu'un zéro est trop proche du cercle unité --- situation d'autant plus
+fréquente que $T_e$ est petit.
+
+\paragraph{Effet du polynôme $C$.} Avec $c = -0{,}5$, le pic initial tombe à environ
+$125$~N$\cdot$m et l'extinction est plus rapide. Le prix à payer est une convergence un peu plus
+lente de l'erreur de poursuite : $C$ réalise donc un compromis explicite entre rapidité et
+douceur de la commande.
+
+\section{Tâche 14 : consigne d'amplitude 0,1 puis 2,0}
+
+\figtp{figures/MR_tache14_c0_fig2.png}{Tâche 14 : sortie et référence pour une amplitude finale de 2,0}{fig:t14}
+
+\paragraph{Résultats et interprétation.} L'erreur de poursuite reste de l'ordre de
+$0{,}03$~rad et la commande n'excède pas $2{,}5$~N$\cdot$m. Là où le PID devenait
+\emph{localement instable} (tâche~2), le régulateur à modèle de référence reste stable et
+précis. La raison est structurelle : il ne repose pas sur un placement de pôles figé autour
+d'un point d'équilibre, mais sur l'inversion du modèle à chaque période, le terme
+$S(q^{-1})y(t)$ compensant en permanence le couple de gravité, assimilable à une perturbation
+lentement variable. L'erreur résiduelle, non nulle, provient de ce que le modèle ARMA utilisé
+reste linéarisé autour de $\theta = 0$.
+
+\section{Tâche 15 : variation de la masse}
+
+\figtp{figures/MR_tache15_c0_fig2.png}{Tâche 15 : sortie et référence après doublement de la masse}{fig:t15a}
+\figtp{figures/MR_tache15_c0_fig3.png}{Tâche 15 : réapparition de l'oscillation de commande après $t = 75$~s}{fig:t15b}
+
+\paragraph{Résultats et interprétation.} La poursuite reste bonne, mais l'erreur est multipliée
+par un facteur voisin de $8$ après le changement, et l'oscillation alternée de la commande
+réapparaît puis s'éteint lentement. Le régulateur continue en effet d'utiliser les coefficients
+$b_0$, $b_1$, $s_0$ et $s_1$ calculés pour le système initial : la simplification du polynôme
+$B$ n'est plus exacte, et la dynamique d'erreur n'est plus celle imposée par $C$.
+
+La dégradation reste ici modérée, car l'écart paramétrique est modeste et connu. Dans une
+application réelle --- un bras portant une charge inconnue et variable --- l'écart peut être
+arbitrairement grand. D'où la nécessité d'estimer les paramètres \emph{en ligne}.
+
+%=======================================================================
+\chapter{Commande adaptative à modèle de référence}
+
+\section{Principe et paramétrisation}
+
+Les paramètres du modèle~\eqref{eq:arma} étant désormais supposés inconnus, les coefficients du
+régulateur ne peuvent plus être calculés hors ligne. On réalise donc une version adaptative du
+régulateur précédent, suivant la démarche du chapitre~3 du cours. Avec
+$\boldsymbol{R}(q^{-1}) = R(q^{-1})B(q^{-1}) = B(q^{-1})$, le vecteur des paramètres du
+régulateur et le vecteur de régression se réduisent à
+\begin{equation}
+  \Theta = \big[\boldsymbol{r}_0,\ \boldsymbol{r}_1,\ s_0,\ s_1\big]^{T} \in \mathbb{R}^4,
+  \qquad
+  \phi(t) = \big[u(t-1),\ u(t-2),\ y(t-1),\ y(t-2)\big]^{T} \in \mathbb{R}^4 ,
+\end{equation}
+puisque $\boldsymbol{r}_2 = 0$. Cette simplification réduit l'exigence d'excitation
+persistante.
+
+\section{Tâche 16 : estimateur paramétrique et validation en boucle ouverte}
+
+L'estimateur des moindres carrés récursifs s'écrit
+\begin{align}
+  \epsilon(t)      &= C(q^{-1})y(t) - \phi^{T}(t)\,\hat\Theta(t-1), \\
+  \hat\Theta(t)    &= \hat\Theta(t-1) + \frac{P(t-1)\phi(t)\,\epsilon(t)}{1 + \phi^{T}(t)P(t-1)\phi(t)},
+  \label{eq:rls1}\\
+  P(t)             &= P(t-1) - \frac{P(t-1)\phi(t)\phi^{T}(t)P(t-1)}{1 + \phi^{T}(t)P(t-1)\phi(t)} .
+  \label{eq:rls2}
+\end{align}
+
+\paragraph{Remarque sur l'ordre des mises à jour.} L'énoncé fait apparaître $P(t)$ au numérateur
+de~\eqref{eq:rls1} et $P(t-1)$ au dénominateur. Les deux écritures sont équivalentes, car
+en multipliant~\eqref{eq:rls2} par $\phi(t)$ on obtient l'identité
+\begin{equation}
+  P(t)\phi(t) = \frac{P(t-1)\phi(t)}{1 + \phi^{T}(t)P(t-1)\phi(t)} .
+\end{equation}
+Le facteur de normalisation est donc \emph{déjà contenu} dans $P(t)$. En pratique, on met à jour
+$\hat\Theta$ avant $P$ en conservant le dénominateur (version programmée ci-dessous), ou bien
+$P$ avant $\hat\Theta$ en le supprimant. Appliquer le dénominateur \emph{et} utiliser $P(t)$
+reviendrait à normaliser deux fois et ralentirait notablement la convergence.
+
+\begin{lstlisting}[caption={Tâche 16 : estimateur des moindres carrés récursifs}]
+epsilon = (y + c*y1) - phi'*Theta;
+Theta   = Theta + P*phi*epsilon/( 1 + phi'*P*phi );
+P       = P - (P*phi*phi'*P)/( 1 + phi'*P*phi );
+\end{lstlisting}
+
+\paragraph{Validation en boucle ouverte.} L'estimateur est d'abord testé seul, le procédé étant
+excité par le signal carré de consigne ($u(t) = $ consigne).
+
+\figtp{figures/CAMR_tache16_fig6.png}{Tâche 16 : estimation de $b_0$ et $b_1$ en boucle ouverte}{fig:t16a}
+\figtp{figures/CAMR_tache16_fig7.png}{Tâche 16 : estimation de $s_0$ et $s_1$ en boucle ouverte}{fig:t16b}
+
+\begin{table}[htbp]
+\centering
+\caption{Tâche 16 : paramètres estimés en boucle ouverte et valeurs vraies}
+\label{tab:t16}
+\begin{tabular}{lcc}
+\toprule
+Paramètre & Estimé & Valeur vraie \\
+\midrule
+$b_0$ & $\approx 0{,}0050$   & $0{,}004957$ \\
+$b_1$ & $\approx 0{,}0047$   & $0{,}004924$ \\
+$s_0$ & $\approx 1{,}9566$   & $1{,}95550$ \\
+$s_1$ & $\approx -0{,}9805$  & $-0{,}98020$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Interprétation.} Les estimés convergent en $2$ à $3$~secondes et l'erreur
+d'estimation $\epsilon$ chute très rapidement vers zéro. Le signal carré constitue donc une
+\textbf{excitation persistante} suffisante : ses fronts contiennent assez de composantes
+fréquentielles pour identifier les quatre paramètres. L'écart résiduel, de l'ordre du pourcent,
+s'explique par la non-linéarité du procédé, que le modèle ARMA ne peut reproduire exactement :
+l'estimateur converge en réalité vers le \emph{meilleur modèle linéaire} au sens des moindres
+carrés pour l'excitation appliquée.
+
+\section{Tâche 17 : loi de commande adaptative}
+
+La loi de commande~\eqref{eq:loiMR} est reprise en remplaçant les paramètres vrais par leurs
+estimés courants (principe d'équivalence certaine) :
+\begin{equation}
+  u(t) = \frac{1}{\hat{\boldsymbol{r}}_0(t)}
+  \Big[-\hat{\boldsymbol{r}}_1(t)u(t-1) - \hat{s}_0(t)y(t) - \hat{s}_1(t)y(t-1)
+  + y^*(t+1) + c\,y^*(t)\Big].
+\end{equation}
+
+\begin{lstlisting}[caption={Tâche 17 : loi de commande adaptative}]
+beta0=Theta(1);
+if (abs(Theta(1))<0.001)
+    beta0=(0.001)*sign(Theta(1));   % protection : r0 estime ne doit pas s'annuler
+end
+u = -Theta(2)*u1 - Theta(3)*y - Theta(4)*y1 + Yref(k+1) + c*Yref(k);
+u = u/beta0;
+\end{lstlisting}
+
+La protection sur $\hat{\boldsymbol{r}}_0$ est indispensable : la division par un estimé proche
+de zéro ferait diverger la commande pendant la phase transitoire d'apprentissage.
+
+\section{Tâche 18 : consigne d'amplitude 0,1 puis 5}
+
+\figtp{figures/CAMR_tache18_c0_fig2.png}{Tâche 18 : sortie, référence et consigne}{fig:t18a}
+\figtp{figures/CAMR_tache18_c0_fig3.png}{Tâche 18 : signal de commande}{fig:t18b}
+\figtp{figures/CAMR_tache18_c0_fig5.png}{Tâche 18 : erreur d'estimation $\epsilon$}{fig:t18c}
+
+\paragraph{Résultats.} Les estimés convergent en moins d'une seconde, soit bien plus vite qu'en
+boucle ouverte : la condition initiale $\theta_0 = 1$~rad et l'action du régulateur excitent
+fortement le procédé dès les premiers instants. L'erreur de poursuite s'établit ensuite autour
+de $4\cdot10^{-4}$~rad, puis d'environ $0{,}09$~rad après le passage à l'amplitude $5$.
+
+\paragraph{Comparaison avec la tâche 13.} La qualité de poursuite est au moins équivalente à
+celle du régulateur linéaire, alors que le régulateur adaptatif part de
+$\hat\Theta(0) = [0{,}01\ 0\ 0\ 0]^T$, c'est-à-dire d'une méconnaissance totale du procédé.
+C'est le résultat central de cette partie. Le signal de commande est en revanche plus agité aux
+grandes amplitudes : les figures des paramètres montrent que $\hat b_0$ dérive vers $0{,}0037$
+au lieu de $0{,}00496$. Ce n'est pas un défaut de l'estimateur mais une conséquence logique du
+fait qu'à $5$~rad le procédé n'est plus décrit par le modèle linéarisé autour de $0$ :
+l'estimateur suit un modèle linéaire local qui change avec le point de fonctionnement.
+
+\section{Tâche 19 : consigne d'amplitude 0,1 puis 2,0}
+
+\figtp{figures/CAMR_tache19_c0_fig2.png}{Tâche 19 : sortie et référence pour une amplitude finale de 2,0}{fig:t19}
+
+\paragraph{Comparaison avec la tâche 14.} Les deux régulateurs donnent la même erreur de
+poursuite, de l'ordre de $0{,}027$~rad. L'adaptation \emph{n'apporte rien} dans ce scénario, et
+ce résultat est instructif : le procédé n'a pas changé, seule la consigne a changé. L'erreur
+résiduelle ne provient pas d'une méconnaissance des paramètres, mais d'une \emph{erreur de
+structure} du modèle (linéarisation d'un procédé non linéaire), qu'aucun des deux régulateurs
+ne peut annuler. On retiendra que l'adaptation compense une variation du procédé, non une
+inadéquation de la structure du modèle.
+
+Il convient néanmoins de rappeler qu'à cette amplitude le PID de la tâche~2 devenait localement
+instable, alors que les deux régulateurs à modèle de référence restent stables.
+
+\section{Tâche 20 : variation de la masse}
+
+\figtp{figures/CAMR_tache20_c0_fig6.png}{Tâche 20 : poursuite des nouvelles valeurs de $b_0$ et $b_1$ après le changement de masse}{fig:t20a}
+\figtp{figures/CAMR_tache20_c0_fig2.png}{Tâche 20 : sortie et référence}{fig:t20b}
+
+\paragraph{Résultats.} À $t = 100$~s, les valeurs vraies subissent un saut ($b_0$ passe de
+$0{,}00496$ à $0{,}00249$). Les estimés les rejoignent en moins d'une seconde, et l'erreur de
+poursuite revient à son niveau nominal, de l'ordre de $2\cdot10^{-3}$~rad.
+
+\paragraph{Comparaison avec la tâche 15.} C'est dans ce scénario que la commande adaptative
+démontre sa supériorité. Le régulateur linéaire conservait des paramètres erronés, voyait son
+erreur multipliée par $8$ et son signal de commande se dégrader durablement. Le régulateur
+adaptatif, lui, \emph{recalcule ses propres coefficients} et retrouve les performances fixées
+par le modèle de référence, sans qu'aucune information sur la nouvelle masse ne lui ait été
+fournie.
+
+\paragraph{Rôle de la réinitialisation de $P$.} Si l'on supprime l'instruction
+\texttt{P=1000*eye(4)} du bloc de changement, les estimés ne bougent pratiquement plus après
+$t = 100$~s ($\hat b_0$ reste à $0{,}0049$ au lieu de descendre à $0{,}0025$). La matrice $P$
+étant décroissante par construction~\eqref{eq:rls2}, elle devient quasi nulle après une longue
+phase de convergence : le gain d'adaptation s'annule et l'estimateur « s'endort ». C'est le
+phénomène d'\textbf{extinction du gain}. Deux remèdes classiques existent : la réinitialisation
+de $P$, employée ici, et le \textbf{facteur d'oubli} $\lambda \in\,]0,1[$, qui consiste à
+diviser $P$ par $\lambda$ à chaque période afin de maintenir l'estimateur en éveil de façon
+permanente. Ce dernier est préférable en pratique, puisqu'il ne suppose pas de connaître
+l'instant de la variation.
+
+%=======================================================================
+\chapter*{Synthèse et conclusion}
+\addcontentsline{toc}{chapter}{Synthèse et conclusion}
+
+Le tableau~\ref{tab:synthese} résume le comportement des trois régulateurs face aux trois
+scénarios d'essai.
+
+\begin{table}[htbp]
+\centering
+\caption{Synthèse comparative des trois stratégies de commande}
+\label{tab:synthese}
+\begin{tabular}{p{3.2cm}p{3.4cm}p{3.4cm}p{3.4cm}}
+\toprule
+ & \textbf{PID} & \textbf{MR linéaire} & \textbf{MR adaptatif} \\
+\midrule
+Connaissance requise & modèle linéarisé & modèle ARMA complet & structure seule ($n$, $d$) \\
+Petite amplitude & bon, $t_r \approx 4$~s & excellent, $|e|<10^{-3}$ & excellent après apprentissage \\
+Amplitude 2,0 rad & \textbf{localement instable} & stable, $|e|\approx 0{,}03$ & stable, $|e|\approx 0{,}027$ \\
+Amplitude 5 rad & dépassement $26\%$, $140$~N$\cdot$m & $|e|\approx 0{,}15$ & $|e|\approx 0{,}09$ \\
+Masse doublée & deux fois plus lent & erreur $\times 8$ & performances conservées \\
+Signal de commande & pics dérivés & oscillation cachée & agité aux fortes amplitudes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ce TP illustre une progression logique. Le PID, synthétisé par placement de pôles sur un modèle
+linéarisé, n'offre les performances attendues qu'au voisinage immédiat du point de
+fonctionnement : il perd sa stabilité lorsque la raideur locale change de signe, et sa rapidité
+lorsque la masse varie. Le régulateur linéaire à modèle de référence, fondé sur l'inversion du
+modèle discret, améliore considérablement la poursuite et la robustesse à l'amplitude, mais
+suppose les paramètres connus et exacts ; de plus, la simplification du polynôme $B$ transfère
+sur la commande un mode oscillant hérité du zéro d'échantillonnage, point à surveiller
+impérativement dans toute implantation réelle. Enfin, la commande adaptative conserve les
+performances du modèle de référence sans aucune connaissance préalable des paramètres et
+s'ajuste automatiquement à leurs variations, à condition que l'excitation soit persistante et
+que le gain d'adaptation soit maintenu, par réinitialisation de $P$ ou par facteur d'oubli.
+
+Une limite commune aux trois approches mérite d'être soulignée : aucune ne supprime l'erreur
+due à la \emph{structure} linéaire du modèle. La poursuite d'une consigne de grande amplitude
+sur un procédé fortement non linéaire relèverait de techniques complémentaires, telles que la
+linéarisation par bouclage ou le séquencement de gains, qui prolongent naturellement ce travail.
+
+\end{document}

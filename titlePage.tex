@@ -1,0 +1,113 @@
+%===== Cover Page — ENSET style =====%
+
+\thispagestyle{cover}%
+\newgeometry{top=1.2cm, bottom=1.0cm, left=2cm, right=2cm}
+
+\definecolor{isiBlue}{RGB}{31, 78, 121}
+
+% ================================================================
+% TOP: Logos UNICAEN + ESIX
+% ================================================================
+\begin{center}
+  \begin{minipage}[c]{0.38\textwidth}
+    \centering
+    \includegraphics[height=22mm]{./Graphismes-UTC/logos/ESIX/logo_unicaen.png}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[c]{0.22\textwidth}
+    \centering
+    \includegraphics[height=22mm]{./Graphismes-UTC/logos/ESIX/logo_esix.png}
+  \end{minipage}
+
+  \vspace{1.5cm}
+  {\large Department of Mechatronics and Embedded Systems}
+
+  \vspace{0.4cm}
+  {\Large\textbf{Erasmus+ Internship Report}}
+
+  \vspace{0.25cm}
+  
+
+  \vspace{0.15cm}
+  {\large\bfseries 4th-year Engineering Student --- MeSE}
+
+  \vspace{0.45cm}
+  \noindent\rule{0.95\textwidth}{1.5pt}
+
+  \vspace{0.4cm}
+  {\LARGE\bfseries \thesujet}
+
+  \vspace{0.4cm}
+  \noindent\rule{0.95\textwidth}{1.5pt}
+\end{center}
+
+\vspace{0.45cm}
+
+% ================================================================
+% MIDDLE: Host institution + logos UNISA / MIVIA Lab
+% ================================================================
+\begin{center}
+  {\normalsize Host institution: \textbf{MIVIA Lab, Università degli Studi di Salerno (UNISA)}}
+
+  \vspace{0.4cm}
+  \begin{minipage}[c]{0.36\textwidth}
+    \centering
+    % Logos sans cadre bleu
+    \includegraphics[width=0.62\linewidth]{./Graphismes-UTC/logos/UNISA/logo_UNISA.png}\\[0.5mm]
+    {\small\textit{}}
+  \end{minipage}
+  \hspace{1.5cm}
+  \begin{minipage}[c]{0.36\textwidth}
+    \centering
+    \includegraphics[width=0.82\linewidth]{./Graphismes-UTC/logos/UNISA/logo-MIVIA.jpeg}\\[2mm]
+    {\small\textit{}}
+  \end{minipage}
+
+  \vspace{0.4cm}
+  {\normalsize Period: \textbf{\theperiode}}
+\end{center}
+
+\vspace{0.5cm}
+
+% ================================================================
+% BOTTOM INFO: Author (left) | Supervisors (right)
+% ================================================================
+\noindent
+\begin{minipage}[t]{0.42\textwidth}
+  {\large\textbf{Author:}}\\[0.3cm]
+  \thestudentname
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.55\textwidth}
+  \raggedleft
+  {\large\textbf{Supervisors:}}\\[0.3cm]
+  \begin{tabular}{ll}
+    \theencadrantUnisa & \textit{(UNISA Supervisor)}   \\[0.1cm]
+    \thesuperviseur    & \textit{(Lab Supervisor)}      \\[0.1cm]
+    \theencadrantEsix  & \textit{(ESIX Tutor)}          \\
+  \end{tabular}
+\end{minipage}
+
+\vfill
+\begin{center}
+  {\normalsize Academic Year: \textbf{\theacademicyear}}
+\end{center}
+
+% ================================================================
+% FOOTER — blue band
+% ================================================================
+\noindent
+\colorbox{isiBlue}{%
+  \parbox{\dimexpr\textwidth\relax}{%
+    \centering
+    \color{white}
+    \vspace*{0.2cm}\par
+    {\large\bfseries ESIX Normandie --- Université de Caen Normandie}\par\vspace{0.15cm}
+    {\small Boulevard Maréchal Juin · CS 14032 · 14032 Caen Cedex --- France \quad|\quad {\hypersetup{urlcolor=white}\href{https://esix.unicaen.fr}{esix.unicaen.fr}}}\\\par
+    \vspace*{0.2cm}
+  }%
+}
+
+\restoregeometry
+
+\clearpage
