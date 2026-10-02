@@ -1,4 +1,4 @@
-%===== Cover Page — ENSET style =====%
+%===== Page de garde — style ESIX (adaptée au TP de Commande Avancée) =====%
 
 \thispagestyle{cover}%
 \newgeometry{top=1.2cm, bottom=1.0cm, left=2cm, right=2cm}
@@ -6,95 +6,84 @@
 \definecolor{isiBlue}{RGB}{31, 78, 121}
 
 % ================================================================
-% TOP: Logos UNICAEN + ESIX
+% HAUT : logos UNICAEN + ESIX
 % ================================================================
 \begin{center}
   \begin{minipage}[c]{0.38\textwidth}
     \centering
-    \includegraphics[height=22mm]{./Graphismes-UTC/logos/ESIX/logo_unicaen.png}
+    \includegraphics[height=22mm]{logo_unicaen.png}
   \end{minipage}
   \hfill
   \begin{minipage}[c]{0.22\textwidth}
     \centering
-    \includegraphics[height=22mm]{./Graphismes-UTC/logos/ESIX/logo_esix.png}
+    \includegraphics[height=22mm]{logo_esix.png}
   \end{minipage}
 
   \vspace{1.5cm}
-  {\large Department of Mechatronics and Embedded Systems}
+  {\large Filière Mécatronique et Systèmes Embarqués (MeSE)}
 
   \vspace{0.4cm}
-  {\Large\textbf{Erasmus+ Internship Report}}
+  {\Large\textbf{Rapport de Travaux Pratiques}}
 
   \vspace{0.25cm}
-  
+  {\large Module : \textbf{Commande Avancée}}
 
   \vspace{0.15cm}
-  {\large\bfseries 4th-year Engineering Student --- MeSE}
+  {\large\bfseries Élève-ingénieur 5\textsuperscript{e} année --- MeSE}
 
   \vspace{0.45cm}
   \noindent\rule{0.95\textwidth}{1.5pt}
 
   \vspace{0.4cm}
-  {\LARGE\bfseries \thesujet}
+  {\LARGE\bfseries TP n\textsuperscript{o}1 : Commande adaptative à modèle\\[2mm] de référence d'un pendule}
 
   \vspace{0.4cm}
   \noindent\rule{0.95\textwidth}{1.5pt}
 \end{center}
 
-\vspace{0.45cm}
+\vspace{0.8cm}
 
 % ================================================================
-% MIDDLE: Host institution + logos UNISA / MIVIA Lab
+% MILIEU : objet du TP
 % ================================================================
 \begin{center}
-  {\normalsize Host institution: \textbf{MIVIA Lab, Università degli Studi di Salerno (UNISA)}}
-
-  \vspace{0.4cm}
-  \begin{minipage}[c]{0.36\textwidth}
-    \centering
-    % Logos sans cadre bleu
-    \includegraphics[width=0.62\linewidth]{./Graphismes-UTC/logos/UNISA/logo_UNISA.png}\\[0.5mm]
-    {\small\textit{}}
-  \end{minipage}
-  \hspace{1.5cm}
-  \begin{minipage}[c]{0.36\textwidth}
-    \centering
-    \includegraphics[width=0.82\linewidth]{./Graphismes-UTC/logos/UNISA/logo-MIVIA.jpeg}\\[2mm]
-    {\small\textit{}}
+  \begin{minipage}{0.88\textwidth}
+    \centering\itshape
+    Synthèse et comparaison de trois stratégies de commande d'un pendule :
+    régulateur PID par placement de pôles, régulateur linéaire à modèle de
+    référence et régulateur adaptatif à modèle de référence.
   \end{minipage}
 
-  \vspace{0.4cm}
-  {\normalsize Period: \textbf{\theperiode}}
+  \vspace{0.8cm}
+  {\normalsize Logiciel utilisé : \textbf{Matlab} --- simulation par Runge--Kutta d'ordre 2}
 \end{center}
 
-\vspace{0.5cm}
+\vspace{1.0cm}
 
 % ================================================================
-% BOTTOM INFO: Author (left) | Supervisors (right)
+% BAS : auteur (gauche) | encadrant (droite)
 % ================================================================
 \noindent
 \begin{minipage}[t]{0.42\textwidth}
-  {\large\textbf{Author:}}\\[0.3cm]
-  \thestudentname
+  {\large\textbf{Rédigé par :}}\\[0.3cm]
+  Abdelmoutalib \textsc{Douadi}
 \end{minipage}
 \hfill
 \begin{minipage}[t]{0.55\textwidth}
   \raggedleft
-  {\large\textbf{Supervisors:}}\\[0.3cm]
+  {\large\textbf{Encadrant :}}\\[0.3cm]
   \begin{tabular}{ll}
-    \theencadrantUnisa & \textit{(UNISA Supervisor)}   \\[0.1cm]
-    \thesuperviseur    & \textit{(Lab Supervisor)}      \\[0.1cm]
-    \theencadrantEsix  & \textit{(ESIX Tutor)}          \\
+    Pr. Fouad \textsc{Giri} & \textit{(ESIX Normandie)} \\
   \end{tabular}
 \end{minipage}
 
 \vfill
 \begin{center}
-  {\normalsize Academic Year: \textbf{\theacademicyear}}
+  {\normalsize Année universitaire : \textbf{2026 -- 2027}}
 \end{center}
 
 % ================================================================
-% FOOTER — blue band
+% PIED DE PAGE — bandeau bleu
 % ================================================================
 \noindent
 \colorbox{isiBlue}{%
