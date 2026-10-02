@@ -1,0 +1,114 @@
+% Script de simulation du système pendulaire
+clear all; close all; clc;
+
+%% Paramètres du système
+m0 = 0.25;      % masse (kg)
+r = 1;          % longueur du bras (m)
+k = 0.1;        % coefficient de frottement visqueux
+g = 10;         % gravité (m/s²)
+J = m0*(r^2);   % moment d'inertie
+
+% coefficient de la fonction de transfert
+a1=k/(m0*(r^2));
+a0=g/r;
+b=1/(m0*(r^2));
+
+% Période d'échantillonnage 
+Te = 0.05;  % Pas pour RK2
+
+% Pas de calcul à utiliser dans la méthode de Range-Kutta 
+Tc = 0.005;
+m=Te/Tc;
+
+% Réglages de départ du PID
+alpha=2;
+Kp=(3*alpha^2 - a0)/b;      % gain proportionnel
+Ti=b*Kp/alpha^3;            % constante de temps intégrale
+Td=(3*alpha - a1)/(b*Kp);   % constante de temps dérivée
+
+%% Paramètres de simulation
+%t = 0:Te:3000*Te;   % grille de temps de simulation (s)
+t = 0:Te:6000*Te;   % grille de temps de simulation (s)
+n=length(t);   %  durée de simulation avec Tc comme unité de temps  
+
+
+%% signal de consigne
+A0=0.1;   %amplitude de la consigne
+A1=1;
+
+% consigne= @(t) A0 * (t >= 0); % Échelon de consigne A0 (N.m)
+
+ consigne = @(t) A0 * (mod(t, 30) < 15); % Consigne carrée: A0 N.m pendant 1s, 0 pendant 1s
+
+
+%% Initialisations vecteur d'état, commande, référence
+x=[0 0]';      %  initialisation du vecteur d'état [position, vitesse]'
+X=x;           % X sauvegarde des valeurs de x(k) à différents instants k
+u = 0;   % u commande à l'instant présent k en boucle fermée
+u1=0;    % u1 commande à l'instant présent k-1
+U=u;     % Sauvegarde des valeurs de la commande u(k) 
+y=x(1);  % sortie (angle theta) 
+Y=y;       % sauvegarde des sorties y(k)
+I=0;       % integrale de u(k)
+e1=0;
+n1=n/2; % instant de changement de masse ou d'amplitude de consigne
+
+Yref=consigne(t(1));   % sauvegarde signal référence
+
+%% Définition de l'équation différentielle
+f = @(x, u, m0) [x(2); (u - k*x(2) - m0*g*r*sin(x(1)))/(m0*r^2)];
+
+%% Début de la boucle de commande (unité temps horloge = Te)
+   %% Acquisition de la mesure de sortie
+   % Résolution de l'équation différentielle du pendule 
+   % par la méthode de Runge-Kutta d'ordre 2 (méthode de Heun)
+   % pas de calcul=Tc
+ for k=1:n-1
+     for i = 1:m
+        x1=x+Tc*f(x,u1, m0);
+        x = x+(Tc/2)*( f(x1,u, m0) + f(x,u1, m0) );
+      end
+    % Changement de la valeur de la masse du système (sans toucher au régulateur)
+       if k==floor(n1)
+       m0=0.5; 
+     % A1=50;
+    end
+
+   % Lecture de sortie
+    y=x(1);
+  
+    % Lecture du signal de référence
+     yref=A1*consigne (t(k));
+      
+   u1=u;  % sauvegarde de u(k) pour le futur
+   e=yref-y; 
+   I=I+Te*e;    % calcul integrale de (yref-y)
+   u=Kp*(e + (1/Ti)*I + Td * (e-e1)/Te);  % loi de commande PID à compléter
+   e1=e;
+   % u=consigne(t(k));  % commande en BO 
+
+   % Sauvgardes
+    Y=[Y y];
+    Yref=[Yref yref];
+    X =[X x];    % sauvegarde
+    U=[U u];     % sauvegarde
+
+ end 
+
+%% Affichage des résultats
+ figure (1)
+ plot(t,Y,'b-', t,Yref,'r-');
+ legend('sortie \theta','consigne');
+ title('Sortie du système (Position)');
+ xlabel('Temps (s)');
+ ylabel('Angle (°)');
+grid on;
+ hold on;
+  figure (2)
+  plot(t,U);
+  title('Signal de commande');
+ xlabel('Temps (s)');
+ ylabel('commande (N*m)');
+legend('commande u');
+
+grid on;
